@@ -217,12 +217,9 @@ def extractActionSequence(model, actions):
 
 def positionLogicPlan(problem):
     for time in range(0, 200):
-    # for time in range(0, 20):
         result = positionLogicPlanWithTime(problem, time)
         if result:
-            util.raiseNotDefined()
-            result = extractActionSequence(logic.pycoSAT(result), ["North", "South", "East", "West"]);
-            return result
+            return extractActionSequence(logic.pycoSAT(convertPathToConstraints(result[::-1])), ["North", "South", "East", "West"]);
 
 def positionLogicPlanWithTime(problem, time):
     """
@@ -231,82 +228,55 @@ def positionLogicPlanWithTime(problem, time):
     Note that STOP is not an available action.
     """
     "*** YOUR CODE HERE ***"
-    print '\nrestart'
-    exprs = []
     frontier = [problem.getGoalState()]
-    explored = []
+    explored, path, branches = [], [], []
     times = {problem.getGoalState():time}
-    path = []
-    lastBranches = []
     while frontier:
         state = frontier.pop()
-        print str(state) + " " + str(times[state])
         explored.append(state)
         path.append(state)
-        print path
-        if state == problem.getStartState():
-            print 'return exprs'
-            return exprs
         if times[state] == 0:
-            print 'continue'
-            # print exprs
-            if lastBranches:
-                path = path[:-1*lastBranches.pop()]
+            if branches:
+                path = path[:-1*branches.pop()]
             continue
-        currentActions = []
-        andExprs = []
-        currentTime = times[state]
-        nextTime = times[state] - 1
         shouldReturn = False
         actions = problem.actions(state)
+        branchingFactor = 0
         for action in actions:
             nextState = problem.result(state, action)[0]
             if nextState not in explored:
-                invertedAction = ''
-                if action == 'North':
-                    invertedAction = 'South'
-                elif action == 'South':
-                    invertedAction = 'North'
-                elif action == 'West':
-                    invertedAction = 'East'
-                elif action == 'East':
-                    invertedAction = 'West'
-
+                branchingFactor += 1
                 if nextState == problem.getStartState():
                     shouldReturn = True
-
                 frontier.append(nextState)
-
-                actionSymbol = logic.PropSymbolExpr(invertedAction, currentTime)
-                times[nextState] = nextTime
-
-                nextActionPropSymbolExpr = logic.PropSymbolExpr(invertedAction, nextTime)
-                nextStatePropSymbolExpr = logic.PropSymbolExpr("P", nextState[0], nextState[1], nextTime)
-                andNextActionStateExpr = logic.Expr("&", nextActionPropSymbolExpr, nextStatePropSymbolExpr)
-                andExprs.append(andNextActionStateExpr)
-                currentActions.append(actionSymbol)
-
-        unifiedExpr = andExprs
-        if len(andExprs) > 0:
-            unifiedExpr = unifiedExpr[0]
-        if len(andExprs) > 1:
-            unifiedExpr = logic.Expr('|', *andExprs)
-            lastBranches.append(currentTime)
-        if len(andExprs) > 0:
-            currentStatePropSymbolExpr = logic.PropSymbolExpr("P", state[0], state[1], currentTime)
-            unifiedExpr = logic.Expr('<=>', unifiedExpr, currentStatePropSymbolExpr)
-            appendExprToExprs(unifiedExpr, exprs)
-
+                times[nextState] = times[state] - 1
+        if branchingFactor > 1:
+            branches.append(times[state])
         if shouldReturn:
-            print 'should return'
             path.append(problem.getStartState())
-            print path
-            return exprs
+            return path
     return False
 
-def appendExprToExprs(expr, exprs):
-    exprs.append(expr)
-    # exprs.append(logic.to_cnf(expr))
+def convertPathToConstraints(path):
+    exprs, actions = [], []
+    for i in range(0, len(path)-1):
+        action = actionForStates(path[i], path[i+1])
+        actions.append(logic.PropSymbolExpr(action, i))
+        actionAndPreStateExpr = logic.Expr('&', logic.PropSymbolExpr("P", path[i][0], path[i][1], i), logic.PropSymbolExpr(action, i))
+        iffExpr = logic.Expr('<=>', logic.PropSymbolExpr("P", path[i+1][0], path[i+1][1], i+1), actionAndPreStateExpr)
+        exprs.append(logic.to_cnf(iffExpr))
+    exprs.append(logic.to_cnf(logic.Expr('&', *actions)))
+    return exprs
+
+def actionForStates(pre, post):
+    if pre[0] > post[0]:
+        return 'West'
+    elif pre[0] < post[0]:
+        return 'East'
+    elif pre[1] > post[1]:
+        return 'South'
+    elif pre[1] > post[1]:
+        return 'North'
 
 def foodLogicPlan(problem):
     """
