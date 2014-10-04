@@ -220,6 +220,7 @@ def positionLogicPlan(problem):
     # for time in range(0, 20):
         result = positionLogicPlanWithTime(problem, time)
         if result:
+            util.raiseNotDefined()
             result = extractActionSequence(logic.pycoSAT(result), ["North", "South", "East", "West"]);
             return result
 
@@ -230,23 +231,33 @@ def positionLogicPlanWithTime(problem, time):
     Note that STOP is not an available action.
     """
     "*** YOUR CODE HERE ***"
+    print '\nrestart'
     exprs = []
     frontier = [problem.getGoalState()]
     explored = []
     times = {problem.getGoalState():time}
+    path = []
+    lastBranches = []
     while frontier:
         state = frontier.pop()
+        print str(state) + " " + str(times[state])
         explored.append(state)
+        path.append(state)
+        print path
         if state == problem.getStartState():
             print 'return exprs'
             return exprs
         if times[state] == 0:
-            print 'return false'
-            return False
+            print 'continue'
+            # print exprs
+            if lastBranches:
+                path = path[:-1*lastBranches.pop()]
+            continue
         currentActions = []
         andExprs = []
         currentTime = times[state]
         nextTime = times[state] - 1
+        shouldReturn = False
         actions = problem.actions(state)
         for action in actions:
             nextState = problem.result(state, action)[0]
@@ -260,6 +271,10 @@ def positionLogicPlanWithTime(problem, time):
                     invertedAction = 'East'
                 elif action == 'East':
                     invertedAction = 'West'
+
+                if nextState == problem.getStartState():
+                    shouldReturn = True
+
                 frontier.append(nextState)
 
                 actionSymbol = logic.PropSymbolExpr(invertedAction, currentTime)
@@ -276,15 +291,22 @@ def positionLogicPlanWithTime(problem, time):
             unifiedExpr = unifiedExpr[0]
         if len(andExprs) > 1:
             unifiedExpr = logic.Expr('|', *andExprs)
+            lastBranches.append(currentTime)
         if len(andExprs) > 0:
             currentStatePropSymbolExpr = logic.PropSymbolExpr("P", state[0], state[1], currentTime)
             unifiedExpr = logic.Expr('<=>', unifiedExpr, currentStatePropSymbolExpr)
             appendExprToExprs(unifiedExpr, exprs)
-    return result
+
+        if shouldReturn:
+            print 'should return'
+            path.append(problem.getStartState())
+            print path
+            return exprs
+    return False
 
 def appendExprToExprs(expr, exprs):
-    # exprs.append(expr)
-    exprs.append(logic.to_cnf(expr))
+    exprs.append(expr)
+    # exprs.append(logic.to_cnf(expr))
 
 def foodLogicPlan(problem):
     """
