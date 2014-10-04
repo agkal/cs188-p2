@@ -220,7 +220,10 @@ def positionLogicPlan(problem):
     # for time in range(0, 20):
         result = positionLogicPlanWithTime(problem, time)
         if result:
-            result = extractActionSequence(logic.pycoSAT(result), ["North", "South", "East", "West"]);
+            result = logic.pycoSAT(result)
+            result = extractActionSequence(result, ["North", "South", "East", "West"]);
+            print result
+            # util.raiseNotDefined()
             return result
 
 def positionLogicPlanWithTime(problem, time):
@@ -235,19 +238,22 @@ def positionLogicPlanWithTime(problem, time):
     explored = []
     times = {problem.getGoalState():time}
     while frontier:
-        state = frontier.pop()
+        state = frontier.pop(0)
         explored.append(state)
         if state == problem.getStartState():
-            print 'return exprs'
+            # print 'return exprs'
+            # print exprs
             return exprs
         if times[state] == 0:
-            print 'return false'
+            # print 'return false'
+            # print exprs
             return False
         currentActions = []
         andExprs = []
         currentTime = times[state]
         nextTime = times[state] - 1
         actions = problem.actions(state)
+        shouldReturn = False
         for action in actions:
             nextState = problem.result(state, action)[0]
             if nextState not in explored:
@@ -260,6 +266,10 @@ def positionLogicPlanWithTime(problem, time):
                     invertedAction = 'East'
                 elif action == 'East':
                     invertedAction = 'West'
+
+                if nextState == problem.getStartState():
+                    shouldReturn = True
+
                 frontier.append(nextState)
 
                 actionSymbol = logic.PropSymbolExpr(invertedAction, currentTime)
@@ -270,6 +280,8 @@ def positionLogicPlanWithTime(problem, time):
                 andNextActionStateExpr = logic.Expr("&", nextActionPropSymbolExpr, nextStatePropSymbolExpr)
                 andExprs.append(andNextActionStateExpr)
                 currentActions.append(actionSymbol)
+        if len(currentActions) > 1:
+            appendExprToExprs(atMostOne(currentActions), exprs)
 
         unifiedExpr = andExprs
         if len(andExprs) > 0:
@@ -280,7 +292,11 @@ def positionLogicPlanWithTime(problem, time):
             currentStatePropSymbolExpr = logic.PropSymbolExpr("P", state[0], state[1], currentTime)
             unifiedExpr = logic.Expr('<=>', unifiedExpr, currentStatePropSymbolExpr)
             appendExprToExprs(unifiedExpr, exprs)
-    return result
+
+        if shouldReturn:
+            # print 'return below'
+            # print exprs
+            return exprs
 
 def appendExprToExprs(expr, exprs):
     # exprs.append(expr)
