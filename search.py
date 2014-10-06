@@ -178,7 +178,13 @@ def exactlyOne(expressions) :
     else:
         newExprs = []
         for i in range(0,len(expressions)/2):
-            newExprs.append(logic.Expr('^', *[expressions[2*i], expressions[2*i+1]]))
+            first = expressions[2*i]
+            second = expressions[2*i+1]
+            notFirst = logic.Expr('~', first)
+            notSecond = logic.Expr('~', second)
+            firstAndNotSecond = logic.Expr("&", first, notSecond)
+            secondAndNotFirst = logic.Expr("&", notFirst, second)
+            newExprs.append(logic.Expr('|', firstAndNotSecond, secondAndNotFirst))
         if 2*(i+1) < len(expressions):
             newExprs.append(expressions[2*i])
         return exactlyOne(newExprs)
