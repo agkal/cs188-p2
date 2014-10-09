@@ -37,6 +37,7 @@ import util
 import sys
 import logic
 import game
+import pprint
 
 class SearchProblem:
     """
@@ -171,6 +172,8 @@ def exactlyOne(expressions) :
     that represents the logic that exactly one of the expressions in the list is true.
     """
     "*** YOUR CODE HERE ***"
+    if len(expressions) == 0:
+        return False
     if len(expressions) == 1:
         return expressions
     if len(expressions) == 2:
@@ -222,67 +225,62 @@ def extractActionSequence(model, actions):
     return sequence
 
 def positionLogicPlan(problem):
-    for time in range(0, 200):
-        result = positionLogicPlanWithTime(problem, time)
-        if result:
-            return extractActionSequence(logic.pycoSAT(convertPathToConstraints(result[::-1])), ["North", "South", "East", "West"]);
+    manhattanDistance = util.manhattanDistance(problem.getStartState(), problem.getGoalState())
+    print "Start state", problem.getStartState(), " and end state ", problem.getGoalState()
+    for time in range(manhattanDistance, 25):
+        exprs = []
 
-def positionLogicPlanWithTime(problem, time):
-    """
-    Given an instance of a PositionSearchProblem, return a list of actions that lead to the goal.
-    Available actions are game.Directions.{NORTH,SOUTH,EAST,WEST}
-    Note that STOP is not an available action.
-    """
-    "*** YOUR CODE HERE ***"
-    frontier = [problem.getGoalState()]
-    explored, path, branches = [], [], []
-    times = {problem.getGoalState():time}
-    while frontier:
-        state = frontier.pop()
-        explored.append(state)
-        path.append(state)
-        if times[state] == 0:
-            if branches:
-                path = path[:-1*branches.pop()]
-            continue
-        shouldReturn = False
-        actions = problem.actions(state)
-        branchingFactor = 0
-        for action in actions:
-            nextState = problem.result(state, action)[0]
-            if nextState not in explored:
-                branchingFactor += 1
-                if nextState == problem.getStartState():
-                    shouldReturn = True
-                frontier.append(nextState)
-                times[nextState] = times[state] - 1
-        if branchingFactor > 1:
-            branches.append(times[state])
-        if shouldReturn:
-            path.append(problem.getStartState())
-            return path
-    return False
+        positions = []
+        for x in range(1,problem.getWidth()+1):
+            for y in range(1,problem.getHeight()+1):
+                if not problem.isWall((x,y)):
+                    positionSymbol = logic.PropSymbolExpr("P",x,y,0)
+                    positions.append(positionSymbol)
+        exactlyOneExpr = exactlyOne(positions)
+        if exactlyOneExpr:
+            appendToExprs(exprs, exactlyOneExpr)
 
-def convertPathToConstraints(path):
-    exprs, actions = [], []
-    for i in range(0, len(path)-1):
-        action = actionForStates(path[i], path[i+1])
-        actions.append(logic.PropSymbolExpr(action, i))
-        actionAndPreStateExpr = logic.Expr('&', logic.PropSymbolExpr("P", path[i][0], path[i][1], i), logic.PropSymbolExpr(action, i))
-        iffExpr = logic.Expr('<=>', logic.PropSymbolExpr("P", path[i+1][0], path[i+1][1], i+1), actionAndPreStateExpr)
-        exprs.append(logic.to_cnf(iffExpr))
-    exprs.append(logic.to_cnf(logic.Expr('&', *actions)))
-    return exprs
+        for t in range(0,time):
+            northSymbol = logic.PropSymbolExpr("North", t)
+            southSymbol = logic.PropSymbolExpr("South", t)
+            westSymbol = logic.PropSymbolExpr("West", t)
+            eastSymbol = logic.PropSymbolExpr("East", t)
+            exactlyOneAction = exactlyOne([northSymbol, southSymbol, westSymbol, eastSymbol])
+            appendToExprs(exprs, exactlyOneAction)
 
-def actionForStates(pre, post):
-    if pre[0] > post[0]:
-        return 'West'
-    elif pre[0] < post[0]:
-        return 'East'
-    elif pre[1] > post[1]:
-        return 'South'
-    elif pre[1] > post[1]:
-        return 'North'
+        for x in range(1,problem.getWidth()+1):
+            for y in range(1,problem.getHeight()+1):
+                if not problem.isWall((x,y)):
+                    actions = problem.actions((x,y))
+                    print actions, (x,y)
+                    for action in actions:
+                        currentStatePropSymbolExpr = logic.PropSymbolExpr("P", x, y, time)
+                        actionPropSymbolExpr = logic.PropSymbolExpr(action, time)
+                        nextState = ()
+                        if action == 'North':
+                            nextState = (x,y+1)
+                        elif action == 'South':
+                            nextState = (x,y-1)
+                        elif action == 'West':
+                            nextState = (x-1,y)
+                        elif action == 'East':
+                            nextState = (x+1,y)
+                        nextStatePropSymbolExpr = logic.PropSymbolExpr("P", nextState[0], nextState[1], time+1)
+                        currentAndAction = logic.Expr("&", actionPropSymbolExpr, currentStatePropSymbolExpr)
+                        iff = logic.Expr("<=>", currentAndAction, nextStatePropSymbolExpr)
+                        appendToExprs(exprs, iff)
+
+        result = logic.pycoSAT(exprs)
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(result)
+        actions = extractActionSequence(result, ["North", "South", "East", "West"])
+        return actions
+        util.raiseNotDefined()
+
+
+def appendToExprs(exprs, rule):
+    exprs.append(logic.to_cnf(rule))
+    # exprs.append(rule)
 
 def foodLogicPlan(problem):
     """
