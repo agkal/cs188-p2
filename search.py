@@ -37,6 +37,7 @@ import util
 import sys
 import logic
 import game
+import pdb
 
 class SearchProblem:
     """
@@ -258,7 +259,7 @@ def positionLogicPlanWithTime(problem, time):
                 times[nextState] = times[state] - 1
         if branchingFactor > 1:
             branches.append(times[state])
-        if shouldReturn:
+        if shouldReturn:    
             path.append(problem.getStartState())
             return path
     return False
@@ -292,7 +293,35 @@ def foodLogicPlan(problem):
     Note that STOP is not an available action.
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    print problem
+    #pdb.set_trace()
+    start=problem.getStartState()
+    pacman=start[0]
+    food=start[1]
+    print pacman
+    print food
+    print problem.actions(start)
+    pdb.set_trace()
+
+    agent=logic.KB_AgentProgram()
+
+
+
+    hasSolution=False
+    time=0
+
+
+
+    while !hasSolution:
+        time=time+1
+
+
+
+    #print problem.result(start, action)
+    #print problem.isWall(position)
+    #print problem.getCostOfActions(actions)
+    return extractActionSequence(logic.pycoSAT(    ), ["North", "South", "East", "West"]);
+
 
 def foodGhostLogicPlan(problem):
     """
