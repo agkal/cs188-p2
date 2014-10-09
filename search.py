@@ -183,7 +183,7 @@ def exactlyOne(expressions) :
         tempExprs.append(logic.Expr('~', expr))
         tempExprsExpr = logic.Expr('|', *tempExprs)
         exprs.append(tempExprsExpr)
-    exprsExpr = logic.Expr('&', *exprs)
+    exprsExpr = logic.Expr('', *exprs)
     return logic.Expr('~', exprsExpr)
 
 
@@ -222,7 +222,13 @@ def positionLogicPlan(problem):
     manhattanDistance = util.manhattanDistance(problem.getStartState(), problem.getGoalState())
     print "Start state", problem.getStartState(), " and end state ", problem.getGoalState()
     for time in range(manhattanDistance, 25):
+        print "a"
         exprs = []
+
+        start=problem.getStartState()
+        goal=problem.getGoalState()
+        exprs.append(logic.PropSymbolExpr("P",start[0],start[1],0))
+        exprs.append(logic.PropSymbolExpr("P",goal[0],goal[1],time))
 
         positions = []
         for x in range(1,problem.getWidth()+1):
@@ -230,11 +236,14 @@ def positionLogicPlan(problem):
                 if not problem.isWall((x,y)):
                     positionSymbol = logic.PropSymbolExpr("P",x,y,0)
                     positions.append(positionSymbol)
+        print "d"
         exactlyOneExpr = exactlyOne(positions)
+        print "e"
         if exactlyOneExpr:
             appendToExprs(exprs, exactlyOneExpr)
 
         for t in range(0,time):
+            print "b"
             northSymbol = logic.PropSymbolExpr("North", t)
             southSymbol = logic.PropSymbolExpr("South", t)
             westSymbol = logic.PropSymbolExpr("West", t)
@@ -242,34 +251,43 @@ def positionLogicPlan(problem):
             exactlyOneAction = exactlyOne([northSymbol, southSymbol, westSymbol, eastSymbol])
             appendToExprs(exprs, exactlyOneAction)
 
-        for x in range(1,problem.getWidth()+1):
-            for y in range(1,problem.getHeight()+1):
-                if not problem.isWall((x,y)):
-                    actions = problem.actions((x,y))
-                    print actions, (x,y)
-                    for action in actions:
-                        currentStatePropSymbolExpr = logic.PropSymbolExpr("P", x, y, time)
-                        actionPropSymbolExpr = logic.PropSymbolExpr(action, time)
-                        nextState = ()
-                        if action == 'North':
-                            nextState = (x,y+1)
-                        elif action == 'South':
-                            nextState = (x,y-1)
-                        elif action == 'West':
-                            nextState = (x-1,y)
-                        elif action == 'East':
-                            nextState = (x+1,y)
-                        nextStatePropSymbolExpr = logic.PropSymbolExpr("P", nextState[0], nextState[1], time+1)
-                        currentAndAction = logic.Expr("&", actionPropSymbolExpr, currentStatePropSymbolExpr)
-                        iff = logic.Expr("<=>", currentAndAction, nextStatePropSymbolExpr)
+        for t in range(1, time+1):
+            print "c"
+            for x in range(1,problem.getWidth()+1):
+                for y in range(1,problem.getHeight()+1):
+                    if not problem.isWall((x,y)):
+                        actions = problem.actions((x,y))
+                        prevExprs = []
+                        for action in actions:
+                            currentStatePropSymbolExpr = logic.PropSymbolExpr("P", x, y, t)
+                            prevState = ()
+                            if action == 'North':
+                                action = 'South'
+                                prevState = (x,y+1)
+                            elif action == 'South':
+                                action = 'North'
+                                prevState = (x,y-1)
+                            elif action == 'West':
+                                action = 'East'
+                                prevState = (x-1,y)
+                            elif action == 'East':
+                                action = 'West'
+                                prevState = (x+1,y)
+                            actionPropSymbolExpr = logic.PropSymbolExpr(action, t-1)
+                            prevStatePropSymbolExpr = logic.PropSymbolExpr("P", prevState[0], prevState[1], t-1)
+                            prevExprs.append(logic.Expr("&", actionPropSymbolExpr, prevStatePropSymbolExpr))
+                        prevExprsOrred = logic.Expr("|", *prevExprs)
+                        iff = logic.Expr("<=>", prevExprsOrred, currentStatePropSymbolExpr)
                         appendToExprs(exprs, iff)
-
-        result = logic.pycoSAT(exprs)
         pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(result)
-        actions = extractActionSequence(result, ["North", "South", "East", "West"])
-        return actions
-        util.raiseNotDefined()
+        # pp.pprint(exprs)
+        result = logic.pycoSAT(exprs)
+        print result
+        if result:
+            # pp.pprint(result)
+            actions = extractActionSequence(result, ["North", "South", "East", "West"])
+            return actions
+    util.raiseNotDefined()
 
 
 def appendToExprs(exprs, rule):
