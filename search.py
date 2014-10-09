@@ -301,9 +301,11 @@ def foodLogicPlan(problem):
     print pacman
     print food
     print problem.actions(start)
-    pdb.set_trace()
 
     agent=logic.KB_AgentProgram()
+
+    agent.tell()
+
 
 
 
@@ -314,6 +316,8 @@ def foodLogicPlan(problem):
 
     while !hasSolution:
         time=time+1
+
+        
 
 
 
