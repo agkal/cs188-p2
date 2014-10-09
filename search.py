@@ -37,7 +37,6 @@ import util
 import sys
 import logic
 import game
-import pprint
 
 class SearchProblem:
     """
@@ -183,7 +182,7 @@ def exactlyOne(expressions) :
         tempExprs.append(logic.Expr('~', expr))
         tempExprsExpr = logic.Expr('|', *tempExprs)
         exprs.append(tempExprsExpr)
-    exprsExpr = logic.Expr('', *exprs)
+    exprsExpr = logic.Expr('&', *exprs)
     return logic.Expr('~', exprsExpr)
 
 
@@ -220,9 +219,7 @@ def extractActionSequence(model, actions):
 
 def positionLogicPlan(problem):
     manhattanDistance = util.manhattanDistance(problem.getStartState(), problem.getGoalState())
-    print "Start state", problem.getStartState(), " and end state ", problem.getGoalState()
-    for time in range(manhattanDistance, 25):
-        print "a"
+    for time in range(manhattanDistance, 3000):
         exprs = []
 
         start=problem.getStartState()
@@ -233,17 +230,11 @@ def positionLogicPlan(problem):
         positions = []
         for x in range(1,problem.getWidth()+1):
             for y in range(1,problem.getHeight()+1):
-                if not problem.isWall((x,y)):
-                    positionSymbol = logic.PropSymbolExpr("P",x,y,0)
-                    positions.append(positionSymbol)
-        print "d"
-        exactlyOneExpr = exactlyOne(positions)
-        print "e"
-        if exactlyOneExpr:
-            appendToExprs(exprs, exactlyOneExpr)
+                if not problem.isWall((x,y)) and (x,y)!=problem.getStartState():
+                    positionSymbol = logic.Expr('~',logic.PropSymbolExpr("P",x,y,0))
+                    exprs.append(positionSymbol)
 
         for t in range(0,time):
-            print "b"
             northSymbol = logic.PropSymbolExpr("North", t)
             southSymbol = logic.PropSymbolExpr("South", t)
             westSymbol = logic.PropSymbolExpr("West", t)
@@ -252,7 +243,6 @@ def positionLogicPlan(problem):
             appendToExprs(exprs, exactlyOneAction)
 
         for t in range(1, time+1):
-            print "c"
             for x in range(1,problem.getWidth()+1):
                 for y in range(1,problem.getHeight()+1):
                     if not problem.isWall((x,y)):
@@ -279,16 +269,9 @@ def positionLogicPlan(problem):
                         prevExprsOrred = logic.Expr("|", *prevExprs)
                         iff = logic.Expr("<=>", prevExprsOrred, currentStatePropSymbolExpr)
                         appendToExprs(exprs, iff)
-        pp = pprint.PrettyPrinter(indent=4)
-        # pp.pprint(exprs)
         result = logic.pycoSAT(exprs)
-        print result
         if result:
-            # pp.pprint(result)
-            actions = extractActionSequence(result, ["North", "South", "East", "West"])
-            return actions
-    util.raiseNotDefined()
-
+            return extractActionSequence(result, ["North", "South", "East", "West"])
 
 def appendToExprs(exprs, rule):
     exprs.append(logic.to_cnf(rule))
