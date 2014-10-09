@@ -275,7 +275,6 @@ def positionLogicPlan(problem):
 
 def appendToExprs(exprs, rule):
     exprs.append(logic.to_cnf(rule))
-    # exprs.append(rule)
 
 def foodLogicPlan(problem):
     """
@@ -285,7 +284,69 @@ def foodLogicPlan(problem):
     Note that STOP is not an available action.
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    #manhattanDistance = util.manhattanDistance(problem.getStartState(), problem.getGoalState())
+
+    for time in range(0, 3000):
+        exprs = []
+
+        start=problem.getStartState()
+
+        pacman=start[0]
+        food=start[1]
+
+
+        exprs.append(logic.PropSymbolExpr("P",pacman[0],pacman[1],0))
+        exprs.append(logic.PropSymbolExpr("P",1,2,time))
+
+
+        positions = []
+        for x in range(1,problem.getWidth()+1):
+            for y in range(1,problem.getHeight()+1):
+                if not problem.isWall((x,y)) and (x,y)!=pacman:
+                    positionSymbol = logic.Expr('~',logic.PropSymbolExpr("P",x,y,0))
+                    exprs.append(positionSymbol)
+
+
+        for t in range(0,time):
+            northSymbol = logic.PropSymbolExpr("North", t)
+            southSymbol = logic.PropSymbolExpr("South", t)
+            westSymbol = logic.PropSymbolExpr("West", t)
+            eastSymbol = logic.PropSymbolExpr("East", t)
+            exactlyOneAction = exactlyOne([northSymbol, southSymbol, westSymbol, eastSymbol])
+            appendToExprs(exprs, exactlyOneAction)
+
+        for t in range(1, time+1):
+            for x in range(1,problem.getWidth()+1):
+                for y in range(1,problem.getHeight()+1):
+                    if not problem.isWall((x,y)):
+                        actions = problem.actions((x,y))
+                        prevExprs = []
+                        for action in actions:
+                            currentStatePropSymbolExpr = logic.PropSymbolExpr("P", x, y, t)
+                            prevState = ()
+                            if action == 'North':
+                                action = 'South'
+                                prevState = (x,y+1)
+                            elif action == 'South':
+                                action = 'North'
+                                prevState = (x,y-1)
+                            elif action == 'West':
+                                action = 'East'
+                                prevState = (x-1,y)
+                            elif action == 'East':
+                                action = 'West'
+                                prevState = (x+1,y)
+                            actionPropSymbolExpr = logic.PropSymbolExpr(action, t-1)
+                            prevStatePropSymbolExpr = logic.PropSymbolExpr("P", prevState[0], prevState[1], t-1)
+                            prevExprs.append(logic.Expr("&", actionPropSymbolExpr, prevStatePropSymbolExpr))
+                        prevExprsOrred = logic.Expr("|", *prevExprs)
+                        iff = logic.Expr("<=>", prevExprsOrred, currentStatePropSymbolExpr)
+                        appendToExprs(exprs, iff)
+        print "hello"
+        result = logic.pycoSAT(exprs)
+        print "yo after pycoSAT"
+        if result:
+            return extractActionSequence(result, ["North", "South", "East", "West"])
 
 def foodGhostLogicPlan(problem):
     """
