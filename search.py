@@ -176,21 +176,15 @@ def exactlyOne(expressions) :
         return False
     if len(expressions) == 1:
         return expressions
-    if len(expressions) == 2:
-        return logic.Expr('^', *expressions)
-    else:
-        newExprs = []
-        for i in range(0,len(expressions)/2):
-            first = expressions[2*i]
-            second = expressions[2*i+1]
-            notFirst = logic.Expr('~', first)
-            notSecond = logic.Expr('~', second)
-            firstAndNotSecond = logic.Expr("&", first, notSecond)
-            secondAndNotFirst = logic.Expr("&", notFirst, second)
-            newExprs.append(logic.Expr('|', firstAndNotSecond, secondAndNotFirst))
-        if 2*(i+1) < len(expressions):
-            newExprs.append(expressions[2*i])
-        return exactlyOne(newExprs)
+    exprs = []
+    for expr in expressions:
+        tempExprs = list(expressions)
+        tempExprs.remove(expr)
+        tempExprs.append(logic.Expr('~', expr))
+        tempExprsExpr = logic.Expr('|', *tempExprs)
+        exprs.append(tempExprsExpr)
+    exprsExpr = logic.Expr('&', *exprs)
+    return logic.Expr('~', exprsExpr)
 
 
 def extractActionSequence(model, actions):
