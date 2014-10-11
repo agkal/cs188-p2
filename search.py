@@ -37,6 +37,10 @@ import util
 import sys
 import logic
 import game
+import pprint
+import pdb
+
+DEBUG=False
 
 class SearchProblem:
     """
@@ -274,7 +278,16 @@ def positionLogicPlan(problem):
             return extractActionSequence(result, ["North", "South", "East", "West"])
 
 def appendToExprs(exprs, rule):
-    exprs.append(logic.to_cnf(rule))
+    #pretty_print(exprs)
+    if DEBUG:
+        exprs.append(rule)
+    else:
+        exprs.append(logic.to_cnf(rule))
+
+def pretty_print(object):
+    pp = pprint.PrettyPrinter(indent=4)
+    pp.pprint(object)
+
 
 def foodLogicPlan(problem):
     """
@@ -294,10 +307,24 @@ def foodLogicPlan(problem):
         pacman=start[0]
         food=start[1]
 
-
         exprs.append(logic.PropSymbolExpr("P",pacman[0],pacman[1],0))
-        exprs.append(logic.PropSymbolExpr("P",1,2,time))
 
+
+        for x,y in food.asList():
+            exprs.append(logic.PropSymbolExpr("F",x,y,0))
+            exprs.append(logic.Expr("~",logic.PropSymbolExpr("F",x,y,time)))
+
+        #pdb.set_trace()
+
+        for x,y in food.asList():
+            for t in range(1,time+1):
+                pastFood=logic.PropSymbolExpr("F",x,y,t-1)
+                currentFood=logic.PropSymbolExpr("F",x,y,t)
+                pacmanHere=logic.PropSymbolExpr("P",x,y,t)
+                isNotEaten=(~pastFood | (pastFood & pacmanHere)) 
+                appendToExprs(exprs,logic.Expr("<=>", ~currentFood, isNotEaten))
+
+        #pdb.set_trace()
 
         positions = []
         for x in range(1,problem.getWidth()+1):
@@ -319,7 +346,7 @@ def foodLogicPlan(problem):
             for x in range(1,problem.getWidth()+1):
                 for y in range(1,problem.getHeight()+1):
                     if not problem.isWall((x,y)):
-                        actions = problem.actions((x,y))
+                        actions = problem.actions(((x,y),food))
                         prevExprs = []
                         for action in actions:
                             currentStatePropSymbolExpr = logic.PropSymbolExpr("P", x, y, t)
@@ -342,11 +369,12 @@ def foodLogicPlan(problem):
                         prevExprsOrred = logic.Expr("|", *prevExprs)
                         iff = logic.Expr("<=>", prevExprsOrred, currentStatePropSymbolExpr)
                         appendToExprs(exprs, iff)
-        print "hello"
         result = logic.pycoSAT(exprs)
-        print "yo after pycoSAT"
         if result:
+            #pretty_print(result)
             return extractActionSequence(result, ["North", "South", "East", "West"])
+
+
 
 def foodGhostLogicPlan(problem):
     """
@@ -358,7 +386,184 @@ def foodGhostLogicPlan(problem):
     Note that STOP is not an available action.
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    def isValid(x,y):
+        if (x<1) | x>problem.getWidth():
+           return False
+
+        if problem.isWall((x,y)):
+            return False
+
+        return True
+
+    for time in range(0, 50):
+        exprs = []
+
+        start=problem.getStartState()
+        ghostStates=problem.getGhostStartStates()
+
+        pacman=start[0]
+        food=start[1]
+
+        exprs.append(logic.PropSymbolExpr("P",pacman[0],pacman[1],0))
+
+        allGhosts=[]
+        ghostNumber=0
+        # for gx,gy,state in ghostStates.asList():
+        #     for y in range(1,problem.getHeight()+1):
+        #         for t in time:
+        #             if y==gy:
+        #                 exprs.append(logic.PropSymbolExpr("GY",ghostNumber,y,t))
+        #             else:
+        #                 exprs.append(~logic.PropSymbolExpr("GY",ghostNumber,y,t))
+
+        #     for x in range(1,problem.getWidth()+1):
+        #         if x==gx:
+        #             exprs.append(logic.PropSymbolExpr("GX",ghostNumber,x,0))
+        #         else:
+        #             exprs.append(~logic.PropSymbolExpr("GX",ghostNumber,x,0))
+
+        for location in ghostStates:                # ghosts at certain states
+            gx=location.getPosition()[0]
+            gy=location.getPosition()[1]
+            direction=logic.PropSymbolExpr("Gwest",ghostNumber,0)
+            if(isValid(gx+1,gy)):
+                exprs.append(~direction)
+            else:
+                exprs.append(direction)
+
+            for y in range(1,problem.getHeight()+1):
+                for x in range(1,problem.getWidth()+1):
+                    if (not problem.isWall((x,y))):
+                        if x==gx and y ==gy:
+                            exprs.append(logic.PropSymbolExpr("G"+str(ghostNumber),x,y,0))
+                        else:
+
+                            a=logic.PropSymbolExpr("G"+str(ghostNumber),x,y,0)
+                            exprs.append(logic.Expr("~",a))
+            ghostNumber=ghostNumber+1
+
+
+        for t in range(0,time+1):
+            exprs.append(logic.PropSymbolExpr("Alive",t)) #pacman is always alive
+
+
+        for t in range(1,time+1):                           #meeting a ghost brings doom
+            for x in range(1,problem.getWidth()+1):
+                for y in range(1,problem.getHeight()+1):
+                    if (not problem.isWall((x,y))):
+                        alive =logic.PropSymbolExpr("Alive",t)
+                        was_alive=logic.PropSymbolExpr("Alive",t-1)
+                        pacman_here=logic.PropSymbolExpr("P",x,y,t) #| logic.PropSymbolExpr("P",x,y,t-1)
+                        ghostPresent=logic.PropSymbolExpr("False")
+                        for number in xrange(len(ghostStates)):
+                            ghost=logic.PropSymbolExpr("G"+str(number),x,y,t) | logic.PropSymbolExpr("G"+str(number),x,y,t-1)
+
+                            #if (isValid(x+1,y)):
+                            #    ghost=ghost | (logic.PropSymbolExpr("G"+str(number),x+1,y,t) & logic.PropSymbolExpr("Gwest",number,t))
+                            #if isValid(x-1,y):
+                                #ghost=ghost | (logic.PropSymbolExpr("G"+str(number),x-1,y,t) & ~logic.PropSymbolExpr("Gwest",number,t))
+
+                            ghostPresent=ghostPresent | ghost
+
+                        appendToExprs(exprs, ~alive % (ghostPresent & pacman_here))
+
+        for t in range(1,time+1):
+            for number in xrange(len(ghostStates)):
+                west_walls=logic.PropSymbolExpr("False")
+                east_walls=logic.PropSymbolExpr("False")
+                for x in range(1,problem.getWidth()+1):
+                    for y in range(1,problem.getHeight()+1):
+                    #    y = ghostStates[number].getPosition()[1]
+                        #for y in range(1,problem.getHeight()+1):
+                        if(not problem.isWall((x,y))):
+                            ghost_here=logic.PropSymbolExpr("G"+str(number),x,y,t)
+                            ghost_direction=logic.PropSymbolExpr("Gwest",number,t-1)
+                            ghost_past=logic.Expr("False")
+                            if(isValid(x-1,y)):
+                                ghost_past = ghost_past | (logic.PropSymbolExpr("G"+str(number),x-1,y,t-1) & ~logic.PropSymbolExpr("Gwest",number,t-1))
+                            else:
+                                west_walls= west_walls | logic.PropSymbolExpr("G"+str(number),x,y,t)
+                                #appendToExprs(exprs, logic.PropSymbolExpr("Gwest",number,t) % logic.PropSymbolExpr("Gwest",number,t-1) | (logic.PropSymbolExpr("G"+str(number),x,y,t) & ~logic.PropSymbolExpr("Gwest",number,t-1)))
+                            if(isValid(x+1,y)):
+                                ghost_past = ghost_past | (logic.PropSymbolExpr("G"+str(number),x+1,y,t-1) & logic.PropSymbolExpr("Gwest",number,t-1))
+                            else:
+                                east_walls= east_walls | logic.PropSymbolExpr("G"+str(number),x,y,t)
+                                #appendToExprs(exprs,~logic.PropSymbolExpr("Gwest",number,t) % logic.PropSymbolExpr("Gwest",number, t-1) | (logic.PropSymbolExpr("G"+str(number),x,y,t) & logic.PropSymbolExpr("Gwest",number,t-1)))
+
+                            appendToExprs(exprs, ghost_here % ghost_past)
+
+                west_now=logic.PropSymbolExpr("Gwest",number,t)
+                west_before=logic.PropSymbolExpr("Gwest",number,t-1)
+
+                appendToExprs(exprs, west_now %  ((west_before & ~west_walls)  | (~west_before & east_walls)))
+                appendToExprs(exprs, ~west_now % ((~west_before & ~east_walls) | (west_before & west_walls)))
+
+        for x,y in food.asList():
+            exprs.append(logic.PropSymbolExpr("F",x,y,0))
+            exprs.append(logic.Expr("~",logic.PropSymbolExpr("F",x,y,time)))
+
+        for x,y in food.asList():
+            for t in range(1,time+1):
+                pastFood=logic.PropSymbolExpr("F",x,y,t-1)
+                currentFood=logic.PropSymbolExpr("F",x,y,t)
+                pacmanHere=logic.PropSymbolExpr("P",x,y,t)
+                isNotEaten=(~pastFood | (pastFood & pacmanHere)) 
+                appendToExprs(exprs,logic.Expr("<=>", ~currentFood, isNotEaten))
+
+        positions = []
+        for x in range(1,problem.getWidth()+1):
+            for y in range(1,problem.getHeight()+1):
+                if not problem.isWall((x,y)) and (x,y)!=pacman:
+                    positionSymbol = logic.Expr('~',logic.PropSymbolExpr("P",x,y,0))
+                    exprs.append(positionSymbol)
+
+
+        for t in range(0,time):
+            northSymbol = logic.PropSymbolExpr("North", t)
+            southSymbol = logic.PropSymbolExpr("South", t)
+            westSymbol = logic.PropSymbolExpr("West", t)
+            eastSymbol = logic.PropSymbolExpr("East", t)
+            exactlyOneAction = exactlyOne([northSymbol, southSymbol, westSymbol, eastSymbol])
+            appendToExprs(exprs, exactlyOneAction)
+
+        for t in range(1, time+1):
+            for x in range(1,problem.getWidth()+1):
+                for y in range(1,problem.getHeight()+1):
+                    if not problem.isWall((x,y)):
+                        actions = problem.actions(((x,y),food))
+                        prevExprs = []
+                        for action in actions:
+                            currentStatePropSymbolExpr = logic.PropSymbolExpr("P", x, y, t)
+                            prevState = ()
+                            if action == 'North':
+                                action = 'South'
+                                prevState = (x,y+1)
+                            elif action == 'South':
+                                action = 'North'
+                                prevState = (x,y-1)
+                            elif action == 'West':
+                                action = 'East'
+                                prevState = (x-1,y)
+                            elif action == 'East':
+                                action = 'West'
+                                prevState = (x+1,y)
+                            actionPropSymbolExpr = logic.PropSymbolExpr(action, t-1)
+                            prevStatePropSymbolExpr = logic.PropSymbolExpr("P", prevState[0], prevState[1], t-1)
+                            prevExprs.append(logic.Expr("&", actionPropSymbolExpr, prevStatePropSymbolExpr))
+                        prevExprsOrred = logic.Expr("|", *prevExprs)
+                        iff = logic.Expr("<=>", prevExprsOrred, currentStatePropSymbolExpr)
+                        appendToExprs(exprs, iff)
+        result=False 
+        if DEBUG:
+            pretty_print(exprs)
+            pdb.set_trace()
+        else:
+            result = logic.pycoSAT(exprs)
+        if result:
+            return extractActionSequence(result, ["North", "South", "East", "West"])
+
+    print "QQ"
+
 
 
 # Abbreviations
